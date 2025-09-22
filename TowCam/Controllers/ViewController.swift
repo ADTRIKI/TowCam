@@ -30,29 +30,41 @@ class ViewController: UIViewController {
     }
     //config
     private func setupCamera() {
-        // Créer la session caméra
-        cameraSession = cameraService.setupCameraSession()
+        // Créer la session avec le nouveau service
+        cameraSession = cameraService.createSession()
+        
+        guard let session = cameraSession else {
+            print("❌ Échec création session caméra")
+            return
+        }
+        
+        createVideoPreview()
         
         // Connecter la session à la preview
-        if let session = cameraSession {
-            previewLayer?.session = session
-            
-            // Démarrer la preview
-            DispatchQueue.global(qos: .background).async {
-                session.startRunning()
-                DispatchQueue.main.async {
-                    print("📷 Preview démarrée !")
-                }
+        previewLayer?.session = session
+        
+        DispatchQueue.main.async {
+            self.previewLayer?.connection?.videoOrientation = .portrait
+            print("📱 Preview layer configurée")
+        }
+        
+        // Démarrer la caméra en arrière-plan
+        DispatchQueue.global(qos: .userInitiated).async {
+            session.startRunning()
+            DispatchQueue.main.async {
+                print("✅ Caméra démarrée avec succès !")
             }
         }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.debugCameraState()
+            }
     }
 
     
     private func setupUI() {
         view.backgroundColor = .black
-        
-        createVideoPreview()
-        
+                
         createRecordButton()
         
         createStatusLabel()
@@ -182,6 +194,13 @@ class ViewController: UIViewController {
     // MARK: - Session caméra
     private var cameraSession: AVCaptureSession?
 
+    private func debugCameraState() {
+        print("🔍 DEBUG Camera State:")
+        print("- previewLayer existe: \(previewLayer != nil)")
+        print("- session existe: \(cameraSession != nil)")
+        print("- session connectée à preview: \(previewLayer?.session != nil)")
+        print("- session en cours: \(cameraSession?.isRunning ?? false)")
+    }
 
 
 
