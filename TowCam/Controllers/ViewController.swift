@@ -19,6 +19,7 @@ class ViewController: UIViewController {
     //interface
     private var recordButton: UIButton!
     private var statusLabel: UILabel!
+    private var cameraSwitch: UIButton!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -69,9 +70,31 @@ class ViewController: UIViewController {
         
         createStatusLabel()
         
+        createCameraSwitchButton()
+        
         layoutElements()
         
     }
+    
+    private func createCameraSwitchButton() {
+        cameraSwitch = UIButton(type: .system)
+        
+        // Texte et style
+        cameraSwitch.setTitle("1x", for: .normal)
+        cameraSwitch.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
+        cameraSwitch.setTitleColor(.white, for: .normal)
+        
+        // Apparence
+        cameraSwitch.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        cameraSwitch.layer.cornerRadius = 25
+        
+        // Action
+        cameraSwitch.addTarget(self, action: #selector(switchCameraTapped), for: .touchUpInside)
+        
+        // Ajouter à l'écran
+        view.addSubview(cameraSwitch)
+    }
+
         
         private func createRecordButton() {
             recordButton = UIButton(type: .system)
@@ -152,6 +175,14 @@ class ViewController: UIViewController {
         
         // Label au-dessus du bouton
         statusLabel.center = CGPoint(x: centerX, y: centerY + 100)
+        
+        cameraSwitch.translatesAutoresizingMaskIntoConstraints = false
+           NSLayoutConstraint.activate([
+               cameraSwitch.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+               cameraSwitch.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+               cameraSwitch.widthAnchor.constraint(equalToConstant: 50),
+               cameraSwitch.heightAnchor.constraint(equalToConstant: 50)
+           ])
     }
     
     // MARK: - Timer
@@ -201,6 +232,25 @@ class ViewController: UIViewController {
         print("- session connectée à preview: \(previewLayer?.session != nil)")
         print("- session en cours: \(cameraSession?.isRunning ?? false)")
     }
+    
+    @objc private func switchCameraTapped() {
+        print("🔄 Switch caméra tappé")
+        
+        // Demander au service de changer de caméra
+        cameraService.switchCamera { [weak self] success, newCameraType in
+            DispatchQueue.main.async {
+                if success {
+                    // Mettre à jour le texte du bouton
+                    let buttonText = newCameraType == .wide ? "1x" : "0.5x"
+                    self?.cameraSwitch.setTitle(buttonText, for: .normal)
+                    print("✅ Caméra switchée vers: \(buttonText)")
+                } else {
+                    print("❌ Échec du switch de caméra")
+                }
+            }
+        }
+    }
+
 
 
 

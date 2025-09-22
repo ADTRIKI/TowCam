@@ -125,5 +125,60 @@ class CameraService: ObservableObject {
             print("💾 Output configuré")
         }
     }
+    
+    // MARK: - Camera Switching
+    func switchCamera(completion: @escaping (Bool, CameraType) -> Void) {
+        guard let session = captureSession else {
+            completion(false, currentCameraType)
+            return
+        }
+        
+        // Déterminer la nouvelle caméra
+        let newCameraType: CameraType = currentCameraType == .wide ? .ultraWide : .wide
+        let newCamera: AVCaptureDevice?
+        
+        switch newCameraType {
+        case .wide:
+            newCamera = backWideCamera
+        case .ultraWide:
+            newCamera = backUltraWideCamera
+        }
+        
+        guard let camera = newCamera else {
+            print("❌ Caméra non disponible: \(newCameraType)")
+            completion(false, currentCameraType)
+            return
+        }
+        
+        // Changer la caméra
+        session.beginConfiguration()
+        
+        // Retirer l'ancien input
+        if let oldInput = videoInput {
+            session.removeInput(oldInput)
+        }
+        
+        // Ajouter le nouveau input
+        do {
+            videoInput = try AVCaptureDeviceInput(device: camera)
+            if session.canAddInput(videoInput!) {
+                session.addInput(videoInput!)
+                currentCamera = camera
+                currentCameraType = newCameraType
+                session.commitConfiguration()
+                
+                print("✅ Switch vers: \(newCameraType == .wide ? "1x" : "0.5x")")
+                completion(true, newCameraType)
+            } else {
+                session.commitConfiguration()
+                completion(false, currentCameraType)
+            }
+        } catch {
+            session.commitConfiguration()
+            print("❌ Erreur switch: \(error)")
+            completion(false, currentCameraType)
+        }
+    }
+
 
 }
