@@ -71,5 +71,9 @@
 > - iPhone with dual camera system (recommended for full functionality)
 > - Camera and microphone access permissions
 
+
+
+EN PAUSE
+
 ## Installation & Setup
 
