@@ -6,6 +6,10 @@
 	<string>TwoCam utilise la caméra pour enregistrer des vidéos avec plusieurs caméras simultanément</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TwoCam utilise le microphone pour enregistrer l&apos;audio des vidéos</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>woCam souhaite accéder à vos photos pour sauvegarder les vidéos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>TwoCam souhaite sauvegarder vos vidéos dans Photos</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -21,10 +25,14 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
-                    <key>NSCameraUsageDescription</key>
-                    <string>TwoCam a besoin de la caméra pour enregistrer des vidéos.</string>
-                    <key>NSMicrophoneUsageDescription</key>
-                    <string>TwoCam a besoin du microphone pour enregistrer l'audio.</string>
+					<key>NSCameraUsageDescription</key>
+					<string>TwoCam a besoin de la caméra pour enregistrer des vidéos.</string>
+					<key>NSMicrophoneUsageDescription</key>
+					<string>TwoCam a besoin du microphone pour enregistrer l&apos;audio.</string>
+					<key>NSPhotoLibraryUsageDescription</key>
+					<string>TwoCam souhaite accéder à vos photos pour sauvegarder les vidéos</string>
+					<key>NSPhotoLibraryAddUsageDescription</key>
+					<string>TwoCam souhaite sauvegarder vos vidéos dans Photos</string>
 				</dict>
 			</array>
 		</dict>

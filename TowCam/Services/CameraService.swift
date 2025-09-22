@@ -7,8 +7,9 @@
 
 import Foundation
 import AVFoundation
+import Photos
 
-class CameraService: ObservableObject {
+class CameraService: NSObject, ObservableObject {
     
     // MARK: - Properties
     private var captureSession: AVCaptureSession?
@@ -28,7 +29,13 @@ class CameraService: ObservableObject {
     }
     private var currentCameraType: CameraType = .wide
     
-    init() {
+    // MARK: - Recording Management
+    private var outputURL: URL?
+    private var isRecording = false
+    private var stopRecordingCompletion: ((Bool, String, URL?) -> Void)?
+    
+    override init() {
+        super.init()
         print("📷 CameraService: Initialisation")
         setupCameras()
         requestPermissions()
@@ -179,6 +186,160 @@ class CameraService: ObservableObject {
             completion(false, currentCameraType)
         }
     }
+    
+    func startRecording(completion: @escaping (Bool, String) -> Void) {
+        guard let movieOutput = videoOutput else {
+            completion(false, "Output non configuré")
+            return
+        }
+        
+        guard !movieOutput.isRecording else {
+            completion(false, "Enregistrement déjà en cours")
+            return
+        }
+        
+        // Créer l'URL de sortie
+        outputURL = createOutputURL()
+        guard let url = outputURL else {
+            completion(false, "Impossible de créer le fichier")
+            return
+        }
+        
+        // Démarrer l'enregistrement
+        movieOutput.startRecording(to: url, recordingDelegate: self)
+        isRecording = true
+        
+        print("🎬 Démarrage enregistrement: \(url.lastPathComponent)")
+        completion(true, "Enregistrement démarré")
+    }
 
+    func stopRecording(completion: @escaping (Bool, String, URL?) -> Void) {
+        guard let movieOutput = videoOutput else {
+            completion(false, "Output non configuré", nil)
+            return
+        }
+        
+        guard movieOutput.isRecording else {
+            completion(false, "Aucun enregistrement en cours", nil)
+            return
+        }
+        
+        // Stocker le callback pour l'utiliser dans le delegate
+        stopRecordingCompletion = completion
+        
+        movieOutput.stopRecording()
+        print("⏹️ Arrêt enregistrement demandé")
+    }
+    
+    // MARK: - File Management
+    private func createOutputURL() -> URL? {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let videoPath = documentsPath.appendingPathComponent("TwoCam_Videos")
+        
+        // Créer le dossier s'il n'existe pas
+        try? FileManager.default.createDirectory(at: videoPath, withIntermediateDirectories: true)
+        
+        // Nom de fichier avec timestamp
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: Date())
+        let fileName = "TwoCam_\(timestamp).mov"
+        
+        return videoPath.appendingPathComponent(fileName)
+    }
 
+    // MARK: - Recording Status
+    func isCurrentlyRecording() -> Bool {
+        return isRecording
+    }
+    
+    private func getFileSize(url: URL) -> String {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attributes[.size] as? Int64 ?? 0
+            return String(format: "%.1f MB", Double(size) / 1_000_000)
+        } catch {
+            return "Inconnue"
+        }
+    }
+    
+    // MARK: - Photos Library
+    private func saveVideoToPhotos(videoURL: URL, completion: @escaping (Bool, String) -> Void) {
+        // Vérifier les permissions
+        PHPhotoLibrary.requestAuthorization { status in
+            switch status {
+            case .authorized:
+                // Sauvegarder la vidéo
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
+                }) { success, error in
+                    DispatchQueue.main.async {
+                        if success {
+                            print("📸 Vidéo sauvée dans Photos")
+                            completion(true, "Vidéo sauvée dans Photos")
+                            
+                            // Supprimer le fichier temporaire
+                            try? FileManager.default.removeItem(at: videoURL)
+                        } else {
+                            print("❌ Échec sauvegarde Photos: \(error?.localizedDescription ?? "Inconnue")")
+                            completion(false, "Échec sauvegarde dans Photos")
+                        }
+                    }
+                }
+                
+            case .denied, .restricted:
+                DispatchQueue.main.async {
+                    completion(false, "Permission Photos refusée")
+                }
+                
+            case .notDetermined:
+                DispatchQueue.main.async {
+                    completion(false, "Permission Photos non définie")
+                }
+                
+            case .limited:
+                // iOS 14+ limited access
+                DispatchQueue.main.async {
+                    completion(false, "Accès Photos limité")
+                }
+                
+            @unknown default:
+                DispatchQueue.main.async {
+                    completion(false, "État permission Photos inconnu")
+                }
+            }
+        }
+    }
+}
+
+// MARK: - AVCaptureFileOutputRecordingDelegate
+extension CameraService: AVCaptureFileOutputRecordingDelegate {
+    
+    func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        print("✅ Enregistrement démarré vers: \(fileURL.lastPathComponent)")
+    }
+    
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        
+        if let error = error {
+            print("❌ Erreur enregistrement: \(error)")
+            isRecording = false
+            stopRecordingCompletion?(false, "Erreur: \(error.localizedDescription)", nil)
+            return
+        }
+        
+        print("✅ Enregistrement terminé: \(outputFileURL.lastPathComponent)")
+        print("📁 Taille fichier: \(getFileSize(url: outputFileURL))")
+        isRecording = false
+        
+        // Sauvegarder dans Photos au lieu de Documents
+        saveVideoToPhotos(videoURL: outputFileURL) { [weak self] success, message in
+            if success {
+                self?.stopRecordingCompletion?(true, "Vidéo sauvée dans Photos", outputFileURL)
+            } else {
+                self?.stopRecordingCompletion?(false, message, nil)
+            }
+            self?.stopRecordingCompletion = nil
+        }
+    }
 }

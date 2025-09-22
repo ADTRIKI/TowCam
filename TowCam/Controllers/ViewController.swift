@@ -8,8 +8,6 @@
 import UIKit
 import AVFoundation
 
-
-
 class ViewController: UIViewController {
     
     //prop
@@ -20,15 +18,20 @@ class ViewController: UIViewController {
     private var recordButton: UIButton!
     private var statusLabel: UILabel!
     private var cameraSwitch: UIButton!
+    
+    // MARK: - Session caméra
+    private var cameraSession: AVCaptureSession?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    
+    // MARK: - Timer
+    private var recordingTimer: Timer?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-        
         setupCamera()
         setupUI()
-            
     }
+    
     //config
     private func setupCamera() {
         // Créer la session avec le nouveau service
@@ -58,22 +61,16 @@ class ViewController: UIViewController {
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.debugCameraState()
-            }
+            self.debugCameraState()
+        }
     }
-
     
     private func setupUI() {
         view.backgroundColor = .black
-                
         createRecordButton()
-        
         createStatusLabel()
-        
         createCameraSwitchButton()
-        
         layoutElements()
-        
     }
     
     private func createCameraSwitchButton() {
@@ -94,59 +91,22 @@ class ViewController: UIViewController {
         // Ajouter à l'écran
         view.addSubview(cameraSwitch)
     }
-
+    
+    private func createRecordButton() {
+        recordButton = UIButton(type: .system)
         
-        private func createRecordButton() {
-            recordButton = UIButton(type: .system)
-            
-            // Apparence du bouton
-            recordButton.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
-            recordButton.layer.cornerRadius = 40
-            recordButton.backgroundColor = .white
-            recordButton.layer.borderWidth = 4
-            recordButton.layer.borderColor = UIColor.red.cgColor
-            
-            // Action quand on appuie
-            recordButton.addTarget(self, action: #selector(recordButtonTapped), for: .touchUpInside)
-            
-            // Ajouter à l'écran
-            view.addSubview(recordButton)
-        }
-    
-    
-    //Action
-    @objc private func recordButtonTapped() {
-        if cameraModel.isRecording {
-            stopRecording()
-        }else {
-            startRecording()
-        }
-    }
-    
-    private func startRecording() {
-        cameraModel.startRecording()
-        startTimer()
-        updateButtonAppearance()
-        print("🎬 Interface: Enregistrement démarré")
-    }
-    
-    private func stopRecording (){
-        cameraModel.stopRecording()
-        stopTimer()
-        updateButtonAppearance()
-        print("Enregistrement arreter")
-    }
-    
-    private func updateButtonAppearance() {
-        if cameraModel.isRecording {
-            // Mode enregistrement : bouton rouge
-            recordButton.backgroundColor = .red
-            recordButton.layer.borderColor = UIColor.white.cgColor
-        } else {
-            // Mode arrêt : bouton blanc
-            recordButton.backgroundColor = .white
-            recordButton.layer.borderColor = UIColor.red.cgColor
-        }
+        // Apparence du bouton
+        recordButton.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
+        recordButton.layer.cornerRadius = 40
+        recordButton.backgroundColor = .white
+        recordButton.layer.borderWidth = 4
+        recordButton.layer.borderColor = UIColor.red.cgColor
+        
+        // Action quand on appuie
+        recordButton.addTarget(self, action: #selector(recordButtonTapped), for: .touchUpInside)
+        
+        // Ajouter à l'écran
+        view.addSubview(recordButton)
     }
     
     private func createStatusLabel() {
@@ -165,6 +125,20 @@ class ViewController: UIViewController {
         view.addSubview(statusLabel)
     }
     
+    private func createVideoPreview() {
+        // Créer la couche de preview
+        previewLayer = AVCaptureVideoPreviewLayer()
+        
+        // Taille plein écran
+        previewLayer?.frame = view.bounds
+        previewLayer?.videoGravity = .resizeAspectFill
+        
+        // Ajouter en arrière-plan (sous les boutons)
+        view.layer.insertSublayer(previewLayer!, at: 0)
+        
+        print("🎥 Preview vidéo créée")
+    }
+    
     private func layoutElements() {
         // Centre de l'écran
         let centerX = view.bounds.width / 2
@@ -177,17 +151,96 @@ class ViewController: UIViewController {
         statusLabel.center = CGPoint(x: centerX, y: centerY + 100)
         
         cameraSwitch.translatesAutoresizingMaskIntoConstraints = false
-           NSLayoutConstraint.activate([
-               cameraSwitch.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
-               cameraSwitch.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
-               cameraSwitch.widthAnchor.constraint(equalToConstant: 50),
-               cameraSwitch.heightAnchor.constraint(equalToConstant: 50)
-           ])
+        NSLayoutConstraint.activate([
+            cameraSwitch.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            cameraSwitch.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            cameraSwitch.widthAnchor.constraint(equalToConstant: 50),
+            cameraSwitch.heightAnchor.constraint(equalToConstant: 50)
+        ])
+    }
+    
+    // MARK: - Actions
+    @objc private func recordButtonTapped() {
+        if cameraModel.isRecording {
+            // Arrêter l'enregistrement
+            stopRecording()
+        } else {
+            // Démarrer l'enregistrement
+            startRecording()
+        }
+    }
+    
+    private func startRecording() {
+        cameraService.startRecording { [weak self] success, message in
+            DispatchQueue.main.async {
+                if success {
+                    self?.cameraModel.startRecording()
+                    self?.updateUI()
+                    print("✅ \(message)")
+                } else {
+                    print("❌ Échec démarrage: \(message)")
+                }
+            }
+        }
+    }
+    
+    private func stopRecording() {
+        cameraService.stopRecording { [weak self] success, message, fileURL in
+            DispatchQueue.main.async {
+                self?.cameraModel.stopRecording()
+                self?.updateUI()
+                
+                if success, let url = fileURL {
+                    print("✅ \(message)")
+                    print("📁 Fichier sauvé: \(url.lastPathComponent)")
+                } else {
+                    print("❌ Échec arrêt: \(message)")
+                }
+            }
+        }
+    }
+    
+    @objc private func switchCameraTapped() {
+        print("🔄 Switch caméra tappé")
+        
+        cameraService.switchCamera { [weak self] success, newCameraType in
+            DispatchQueue.main.async {
+                if success {
+                    // Mettre à jour le texte du bouton
+                    let buttonText = newCameraType == .wide ? "1x" : "0.5x"
+                    self?.cameraSwitch.setTitle(buttonText, for: .normal)
+                    print("✅ Caméra switchée vers: \(buttonText)")
+                } else {
+                    print("❌ Échec du switch de caméra")
+                }
+            }
+        }
+    }
+    
+    // MARK: - UI Updates
+    private func updateUI() {
+        updateButtonAppearance()
+        
+        if cameraModel.isRecording {
+            startTimer()
+        } else {
+            stopTimer()
+        }
+    }
+    
+    private func updateButtonAppearance() {
+        if cameraModel.isRecording {
+            // Mode enregistrement : bouton rouge
+            recordButton.backgroundColor = .red
+            recordButton.layer.borderColor = UIColor.white.cgColor
+        } else {
+            // Mode arrêt : bouton blanc
+            recordButton.backgroundColor = .white
+            recordButton.layer.borderColor = UIColor.red.cgColor
+        }
     }
     
     // MARK: - Timer
-    private var recordingTimer: Timer?
-    
     private func startTimer() {
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             self.cameraModel.recordingDuration += 0.1
@@ -206,25 +259,6 @@ class ViewController: UIViewController {
         statusLabel.text = String(format: "%02d:%02d", minutes, seconds)
     }
     
-    private var previewLayer: AVCaptureVideoPreviewLayer?
-    
-    private func createVideoPreview() {
-        // Créer la couche de preview
-        previewLayer = AVCaptureVideoPreviewLayer()
-        
-        // Taille plein écran
-        previewLayer?.frame = view.bounds
-        previewLayer?.videoGravity = .resizeAspectFill
-        
-        // Ajouter en arrière-plan (sous les boutons)
-        view.layer.insertSublayer(previewLayer!, at: 0)
-        
-        print("🎥 Preview vidéo créée")
-    }
-    
-    // MARK: - Session caméra
-    private var cameraSession: AVCaptureSession?
-
     private func debugCameraState() {
         print("🔍 DEBUG Camera State:")
         print("- previewLayer existe: \(previewLayer != nil)")
@@ -232,32 +266,4 @@ class ViewController: UIViewController {
         print("- session connectée à preview: \(previewLayer?.session != nil)")
         print("- session en cours: \(cameraSession?.isRunning ?? false)")
     }
-    
-    @objc private func switchCameraTapped() {
-        print("🔄 Switch caméra tappé")
-        
-        // Demander au service de changer de caméra
-        cameraService.switchCamera { [weak self] success, newCameraType in
-            DispatchQueue.main.async {
-                if success {
-                    // Mettre à jour le texte du bouton
-                    let buttonText = newCameraType == .wide ? "1x" : "0.5x"
-                    self?.cameraSwitch.setTitle(buttonText, for: .normal)
-                    print("✅ Caméra switchée vers: \(buttonText)")
-                } else {
-                    print("❌ Échec du switch de caméra")
-                }
-            }
-        }
-    }
-
-
-
-
-
-
-
-
-
 }
-
