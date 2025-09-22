@@ -12,135 +12,140 @@ import Photos
 class CameraService: NSObject, ObservableObject {
     
     // MARK: - Properties
+    
     private var captureSession: AVCaptureSession?
     private var videoInput: AVCaptureDeviceInput?
     private var audioInput: AVCaptureDeviceInput?
     private var videoOutput: AVCaptureMovieFileOutput?
     
-    // MARK: - Camera devices
+    // MARK: - Camera Devices
+    
     private var backWideCamera: AVCaptureDevice?
     private var backUltraWideCamera: AVCaptureDevice?
     private var currentCamera: AVCaptureDevice?
     
-    // MARK: - Current camera type
+    // MARK: - Camera Configuration
+    
     enum CameraType {
-        case wide      // 1x
-        case ultraWide // 0.5x
+        case wide
+        case ultraWide
     }
+    
     private var currentCameraType: CameraType = .wide
     
     // MARK: - Recording Management
+    
     private var outputURL: URL?
     private var isRecording = false
     private var stopRecordingCompletion: ((Bool, String, URL?) -> Void)?
     
+    // MARK: - Initialization
+    
     override init() {
         super.init()
-        print("📷 CameraService: Initialisation")
+        print("CameraService initialization started")
         setupCameras()
         requestPermissions()
     }
     
-    // MARK: - Setup
+    // MARK: - Camera Setup
+    
+    /// Fonction pour configurer les dispositifs caméra disponibles
     private func setupCameras() {
         backWideCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
         backUltraWideCamera = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back)
-        
-        // Commencer avec la caméra principale
         currentCamera = backWideCamera
         
-        print("📷 Caméra 1x: \(backWideCamera != nil ? "✅" : "❌")")
-        print("📷 Caméra 0.5x: \(backUltraWideCamera != nil ? "✅" : "❌")")
+        print("Wide camera (1x): \(backWideCamera != nil ? "Available" : "Not available")")
+        print("Ultra-wide camera (0.5x): \(backUltraWideCamera != nil ? "Available" : "Not available")")
     }
     
+    /// Fonction pour demander les permissions caméra et microphone
     private func requestPermissions() {
         AVCaptureDevice.requestAccess(for: .video) { granted in
-            print("📷 Permission caméra: \(granted ? "✅" : "❌")")
+            print("Camera permission: \(granted ? "Granted" : "Denied")")
         }
         
         AVCaptureDevice.requestAccess(for: .audio) { granted in
-            print("🎤 Permission microphone: \(granted ? "✅" : "❌")")
+            print("Microphone permission: \(granted ? "Granted" : "Denied")")
         }
     }
     
     // MARK: - Session Management
+    
+    /// Fonction pour créer et configurer la session de capture
     func createSession() -> AVCaptureSession? {
-        // Créer une session standard
         captureSession = AVCaptureSession()
         
         guard let session = captureSession else {
-            print("❌ Impossible de créer la session")
+            print("Failed to create capture session")
             return nil
         }
         
-        // Configuration
         session.beginConfiguration()
         
-        // Ajouter les inputs (caméra + micro)
         guard setupInputs(for: session) else {
-            print("❌ Échec configuration inputs")
+            print("Failed to configure inputs")
             session.commitConfiguration()
             return nil
         }
         
-        // Ajouter l'output (enregistrement)
         setupOutput(for: session)
-        
-        // Valider la configuration
         session.commitConfiguration()
         
-        print("✅ Session créée avec succès")
+        print("Capture session created successfully")
         return session
     }
-
+    
+    /// Fonction pour configurer les entrées vidéo et audio
     private func setupInputs(for session: AVCaptureSession) -> Bool {
         do {
-            // Input vidéo (caméra courante)
             if let camera = currentCamera {
                 videoInput = try AVCaptureDeviceInput(device: camera)
                 if session.canAddInput(videoInput!) {
                     session.addInput(videoInput!)
-                    print("📷 Caméra connectée: \(currentCameraType == .wide ? "1x" : "0.5x")")
+                    print("Camera connected: \(currentCameraType == .wide ? "1x" : "0.5x")")
                 } else {
-                    print("❌ Impossible d'ajouter l'input vidéo")
+                    print("Cannot add video input")
                     return false
                 }
             }
             
-            // Input audio (microphone)
             if let microphone = AVCaptureDevice.default(for: .audio) {
                 audioInput = try AVCaptureDeviceInput(device: microphone)
                 if session.canAddInput(audioInput!) {
                     session.addInput(audioInput!)
-                    print("🎤 Microphone connecté")
+                    print("Microphone connected")
                 }
             }
             
             return true
             
         } catch {
-            print("❌ Erreur inputs: \(error)")
+            print("Input setup error: \(error)")
             return false
         }
     }
-
+    
+    /// Fonction pour configurer la sortie d'enregistrement
     private func setupOutput(for session: AVCaptureSession) {
         videoOutput = AVCaptureMovieFileOutput()
         
         if let output = videoOutput, session.canAddOutput(output) {
             session.addOutput(output)
-            print("💾 Output configuré")
+            print("Output configured")
         }
     }
     
     // MARK: - Camera Switching
+    
+    /// Fonction pour changer entre les caméras wide et ultra-wide
     func switchCamera(completion: @escaping (Bool, CameraType) -> Void) {
         guard let session = captureSession else {
             completion(false, currentCameraType)
             return
         }
         
-        // Déterminer la nouvelle caméra
         let newCameraType: CameraType = currentCameraType == .wide ? .ultraWide : .wide
         let newCamera: AVCaptureDevice?
         
@@ -152,20 +157,17 @@ class CameraService: NSObject, ObservableObject {
         }
         
         guard let camera = newCamera else {
-            print("❌ Caméra non disponible: \(newCameraType)")
+            print("Camera not available: \(newCameraType)")
             completion(false, currentCameraType)
             return
         }
         
-        // Changer la caméra
         session.beginConfiguration()
         
-        // Retirer l'ancien input
         if let oldInput = videoInput {
             session.removeInput(oldInput)
         }
         
-        // Ajouter le nouveau input
         do {
             videoInput = try AVCaptureDeviceInput(device: camera)
             if session.canAddInput(videoInput!) {
@@ -174,7 +176,7 @@ class CameraService: NSObject, ObservableObject {
                 currentCameraType = newCameraType
                 session.commitConfiguration()
                 
-                print("✅ Switch vers: \(newCameraType == .wide ? "1x" : "0.5x")")
+                print("Camera switched to: \(newCameraType == .wide ? "1x" : "0.5x")")
                 completion(true, newCameraType)
             } else {
                 session.commitConfiguration()
@@ -182,64 +184,64 @@ class CameraService: NSObject, ObservableObject {
             }
         } catch {
             session.commitConfiguration()
-            print("❌ Erreur switch: \(error)")
+            print("Camera switch error: \(error)")
             completion(false, currentCameraType)
         }
     }
     
+    // MARK: - Recording Control
+    
+    /// Fonction pour démarrer l'enregistrement vidéo
     func startRecording(completion: @escaping (Bool, String) -> Void) {
         guard let movieOutput = videoOutput else {
-            completion(false, "Output non configuré")
+            completion(false, "Output not configured")
             return
         }
         
         guard !movieOutput.isRecording else {
-            completion(false, "Enregistrement déjà en cours")
+            completion(false, "Recording already in progress")
             return
         }
         
-        // Créer l'URL de sortie
         outputURL = createOutputURL()
         guard let url = outputURL else {
-            completion(false, "Impossible de créer le fichier")
+            completion(false, "Cannot create output file")
             return
         }
         
-        // Démarrer l'enregistrement
         movieOutput.startRecording(to: url, recordingDelegate: self)
         isRecording = true
         
-        print("🎬 Démarrage enregistrement: \(url.lastPathComponent)")
-        completion(true, "Enregistrement démarré")
+        print("Recording started: \(url.lastPathComponent)")
+        completion(true, "Recording started")
     }
-
+    
+    /// Fonction pour arrêter l'enregistrement vidéo
     func stopRecording(completion: @escaping (Bool, String, URL?) -> Void) {
         guard let movieOutput = videoOutput else {
-            completion(false, "Output non configuré", nil)
+            completion(false, "Output not configured", nil)
             return
         }
         
         guard movieOutput.isRecording else {
-            completion(false, "Aucun enregistrement en cours", nil)
+            completion(false, "No recording in progress", nil)
             return
         }
         
-        // Stocker le callback pour l'utiliser dans le delegate
         stopRecordingCompletion = completion
-        
         movieOutput.stopRecording()
-        print("⏹️ Arrêt enregistrement demandé")
+        print("Recording stop requested")
     }
     
     // MARK: - File Management
+    
+    /// Fonction pour créer l'URL de sortie pour les fichiers vidéo
     private func createOutputURL() -> URL? {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         let videoPath = documentsPath.appendingPathComponent("TwoCam_Videos")
         
-        // Créer le dossier s'il n'existe pas
         try? FileManager.default.createDirectory(at: videoPath, withIntermediateDirectories: true)
         
-        // Nom de fichier avec timestamp
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = formatter.string(from: Date())
@@ -247,65 +249,65 @@ class CameraService: NSObject, ObservableObject {
         
         return videoPath.appendingPathComponent(fileName)
     }
-
-    // MARK: - Recording Status
-    func isCurrentlyRecording() -> Bool {
-        return isRecording
-    }
     
+    /// Fonction pour obtenir la taille d'un fichier
     private func getFileSize(url: URL) -> String {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attributes[.size] as? Int64 ?? 0
             return String(format: "%.1f MB", Double(size) / 1_000_000)
         } catch {
-            return "Inconnue"
+            return "Unknown"
         }
     }
     
-    // MARK: - Photos Library
+    // MARK: - Recording Status
+    
+    /// Fonction pour vérifier l'état d'enregistrement
+    func isCurrentlyRecording() -> Bool {
+        return isRecording
+    }
+    
+    // MARK: - Photos Integration
+    
+    /// Fonction pour sauvegarder la vidéo dans la bibliothèque Photos
     private func saveVideoToPhotos(videoURL: URL, completion: @escaping (Bool, String) -> Void) {
-        // Vérifier les permissions
         PHPhotoLibrary.requestAuthorization { status in
             switch status {
             case .authorized:
-                // Sauvegarder la vidéo
                 PHPhotoLibrary.shared().performChanges({
                     PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
                 }) { success, error in
                     DispatchQueue.main.async {
                         if success {
-                            print("📸 Vidéo sauvée dans Photos")
-                            completion(true, "Vidéo sauvée dans Photos")
-                            
-                            // Supprimer le fichier temporaire
+                            print("Video saved to Photos")
+                            completion(true, "Video saved to Photos")
                             try? FileManager.default.removeItem(at: videoURL)
                         } else {
-                            print("❌ Échec sauvegarde Photos: \(error?.localizedDescription ?? "Inconnue")")
-                            completion(false, "Échec sauvegarde dans Photos")
+                            print("Failed to save to Photos: \(error?.localizedDescription ?? "Unknown")")
+                            completion(false, "Failed to save to Photos")
                         }
                     }
                 }
                 
             case .denied, .restricted:
                 DispatchQueue.main.async {
-                    completion(false, "Permission Photos refusée")
+                    completion(false, "Photos permission denied")
                 }
                 
             case .notDetermined:
                 DispatchQueue.main.async {
-                    completion(false, "Permission Photos non définie")
+                    completion(false, "Photos permission not determined")
                 }
                 
             case .limited:
-                // iOS 14+ limited access
                 DispatchQueue.main.async {
-                    completion(false, "Accès Photos limité")
+                    completion(false, "Limited Photos access")
                 }
                 
             @unknown default:
                 DispatchQueue.main.async {
-                    completion(false, "État permission Photos inconnu")
+                    completion(false, "Unknown Photos permission state")
                 }
             }
         }
@@ -313,29 +315,31 @@ class CameraService: NSObject, ObservableObject {
 }
 
 // MARK: - AVCaptureFileOutputRecordingDelegate
+
 extension CameraService: AVCaptureFileOutputRecordingDelegate {
     
+    /// Fonction pour traiter le début d'enregistrement
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
-        print("✅ Enregistrement démarré vers: \(fileURL.lastPathComponent)")
+        print("Recording started to: \(fileURL.lastPathComponent)")
     }
     
+    /// Fonction pour traiter la fin d'enregistrement et sauvegarder
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         
         if let error = error {
-            print("❌ Erreur enregistrement: \(error)")
+            print("Recording error: \(error)")
             isRecording = false
-            stopRecordingCompletion?(false, "Erreur: \(error.localizedDescription)", nil)
+            stopRecordingCompletion?(false, "Error: \(error.localizedDescription)", nil)
             return
         }
         
-        print("✅ Enregistrement terminé: \(outputFileURL.lastPathComponent)")
-        print("📁 Taille fichier: \(getFileSize(url: outputFileURL))")
+        print("Recording completed: \(outputFileURL.lastPathComponent)")
+        print("File size: \(getFileSize(url: outputFileURL))")
         isRecording = false
         
-        // Sauvegarder dans Photos au lieu de Documents
         saveVideoToPhotos(videoURL: outputFileURL) { [weak self] success, message in
             if success {
-                self?.stopRecordingCompletion?(true, "Vidéo sauvée dans Photos", outputFileURL)
+                self?.stopRecordingCompletion?(true, "Video saved to Photos", outputFileURL)
             } else {
                 self?.stopRecordingCompletion?(false, message, nil)
             }

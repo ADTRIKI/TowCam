@@ -10,53 +10,51 @@ import AVFoundation
 
 class ViewController: UIViewController {
     
-    //prop
+    // MARK: - Properties
+    
     private let cameraModel = CameraModel()
     private let cameraService = CameraService()
+    private var cameraSession: AVCaptureSession?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var recordingTimer: Timer?
     
-    //interface
+    // MARK: - UI Elements
+    
     private var recordButton: UIButton!
     private var statusLabel: UILabel!
     private var cameraSwitch: UIButton!
-    
-    // MARK: - Session caméra
-    private var cameraSession: AVCaptureSession?
-    private var previewLayer: AVCaptureVideoPreviewLayer?
-    
-    // MARK: - Timer
-    private var recordingTimer: Timer?
 
+    // MARK: - Lifecycle
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupCamera()
         setupUI()
     }
     
-    //config
+    // MARK: - Camera Configuration
+    
+    /// Fonction pour configurer la session caméra principale
     private func setupCamera() {
-        // Créer la session avec le nouveau service
         cameraSession = cameraService.createSession()
         
         guard let session = cameraSession else {
-            print("❌ Échec création session caméra")
+            print("Failed to create camera session")
             return
         }
         
         createVideoPreview()
-        
-        // Connecter la session à la preview
         previewLayer?.session = session
         
         DispatchQueue.main.async {
             self.previewLayer?.connection?.videoOrientation = .portrait
-            print("📱 Preview layer configurée")
+            print("Preview layer configured")
         }
         
-        // Démarrer la caméra en arrière-plan
         DispatchQueue.global(qos: .userInitiated).async {
             session.startRunning()
             DispatchQueue.main.async {
-                print("✅ Caméra démarrée avec succès !")
+                print("Camera started successfully")
             }
         }
         
@@ -65,6 +63,27 @@ class ViewController: UIViewController {
         }
     }
     
+    /// Fonction pour créer la couche de prévisualisation vidéo
+    private func createVideoPreview() {
+        previewLayer = AVCaptureVideoPreviewLayer()
+        previewLayer?.frame = view.bounds
+        previewLayer?.videoGravity = .resizeAspectFill
+        view.layer.insertSublayer(previewLayer!, at: 0)
+        print("Video preview created")
+    }
+    
+    /// Fonction pour débugger l'état de la caméra
+    private func debugCameraState() {
+        print("DEBUG Camera State:")
+        print("- previewLayer exists: \(previewLayer != nil)")
+        print("- session exists: \(cameraSession != nil)")
+        print("- session connected to preview: \(previewLayer?.session != nil)")
+        print("- session running: \(cameraSession?.isRunning ?? false)")
+    }
+    
+    // MARK: - UI Setup
+    
+    /// Fonction pour configurer l'interface utilisateur
     private func setupUI() {
         view.backgroundColor = .black
         createRecordButton()
@@ -73,81 +92,47 @@ class ViewController: UIViewController {
         layoutElements()
     }
     
-    private func createCameraSwitchButton() {
-        cameraSwitch = UIButton(type: .system)
-        
-        // Texte et style
-        cameraSwitch.setTitle("1x", for: .normal)
-        cameraSwitch.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
-        cameraSwitch.setTitleColor(.white, for: .normal)
-        
-        // Apparence
-        cameraSwitch.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        cameraSwitch.layer.cornerRadius = 25
-        
-        // Action
-        cameraSwitch.addTarget(self, action: #selector(switchCameraTapped), for: .touchUpInside)
-        
-        // Ajouter à l'écran
-        view.addSubview(cameraSwitch)
-    }
-    
+    /// Fonction pour créer le bouton d'enregistrement
     private func createRecordButton() {
         recordButton = UIButton(type: .system)
-        
-        // Apparence du bouton
         recordButton.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
         recordButton.layer.cornerRadius = 40
         recordButton.backgroundColor = .white
         recordButton.layer.borderWidth = 4
         recordButton.layer.borderColor = UIColor.red.cgColor
-        
-        // Action quand on appuie
         recordButton.addTarget(self, action: #selector(recordButtonTapped), for: .touchUpInside)
-        
-        // Ajouter à l'écran
         view.addSubview(recordButton)
     }
     
+    /// Fonction pour créer le bouton de changement de caméra
+    private func createCameraSwitchButton() {
+        cameraSwitch = UIButton(type: .system)
+        cameraSwitch.setTitle("1x", for: .normal)
+        cameraSwitch.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
+        cameraSwitch.setTitleColor(.white, for: .normal)
+        cameraSwitch.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        cameraSwitch.layer.cornerRadius = 25
+        cameraSwitch.addTarget(self, action: #selector(switchCameraTapped), for: .touchUpInside)
+        view.addSubview(cameraSwitch)
+    }
+    
+    /// Fonction pour créer le label de statut du timer
     private func createStatusLabel() {
         statusLabel = UILabel()
-        
-        // Texte et style
         statusLabel.text = "00:00"
         statusLabel.textColor = .white
         statusLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 24, weight: .medium)
         statusLabel.textAlignment = .center
-        
-        // Taille et position temporaire
         statusLabel.frame = CGRect(x: 0, y: 0, width: 100, height: 30)
-        
-        // Ajouter à l'écran
         view.addSubview(statusLabel)
     }
     
-    private func createVideoPreview() {
-        // Créer la couche de preview
-        previewLayer = AVCaptureVideoPreviewLayer()
-        
-        // Taille plein écran
-        previewLayer?.frame = view.bounds
-        previewLayer?.videoGravity = .resizeAspectFill
-        
-        // Ajouter en arrière-plan (sous les boutons)
-        view.layer.insertSublayer(previewLayer!, at: 0)
-        
-        print("🎥 Preview vidéo créée")
-    }
-    
+    /// Fonction pour positionner les éléments de l'interface
     private func layoutElements() {
-        // Centre de l'écran
         let centerX = view.bounds.width / 2
         let centerY = view.bounds.height / 2
         
-        // Bouton en bas au centre
         recordButton.center = CGPoint(x: centerX, y: centerY + 200)
-        
-        // Label au-dessus du bouton
         statusLabel.center = CGPoint(x: centerX, y: centerY + 100)
         
         cameraSwitch.translatesAutoresizingMaskIntoConstraints = false
@@ -159,31 +144,33 @@ class ViewController: UIViewController {
         ])
     }
     
-    // MARK: - Actions
+    // MARK: - Recording Actions
+    
+    /// Fonction pour gérer l'appui sur le bouton d'enregistrement
     @objc private func recordButtonTapped() {
         if cameraModel.isRecording {
-            // Arrêter l'enregistrement
             stopRecording()
         } else {
-            // Démarrer l'enregistrement
             startRecording()
         }
     }
     
+    /// Fonction pour démarrer l'enregistrement
     private func startRecording() {
         cameraService.startRecording { [weak self] success, message in
             DispatchQueue.main.async {
                 if success {
                     self?.cameraModel.startRecording()
                     self?.updateUI()
-                    print("✅ \(message)")
+                    print("Recording started: \(message)")
                 } else {
-                    print("❌ Échec démarrage: \(message)")
+                    print("Failed to start recording: \(message)")
                 }
             }
         }
     }
     
+    /// Fonction pour arrêter l'enregistrement
     private func stopRecording() {
         cameraService.stopRecording { [weak self] success, message, fileURL in
             DispatchQueue.main.async {
@@ -191,33 +178,37 @@ class ViewController: UIViewController {
                 self?.updateUI()
                 
                 if success, let url = fileURL {
-                    print("✅ \(message)")
-                    print("📁 Fichier sauvé: \(url.lastPathComponent)")
+                    print("Recording completed: \(message)")
+                    print("File saved: \(url.lastPathComponent)")
                 } else {
-                    print("❌ Échec arrêt: \(message)")
+                    print("Failed to stop recording: \(message)")
                 }
             }
         }
     }
     
+    // MARK: - Camera Controls
+    
+    /// Fonction pour changer de caméra
     @objc private func switchCameraTapped() {
-        print("🔄 Switch caméra tappé")
+        print("Camera switch tapped")
         
         cameraService.switchCamera { [weak self] success, newCameraType in
             DispatchQueue.main.async {
                 if success {
-                    // Mettre à jour le texte du bouton
                     let buttonText = newCameraType == .wide ? "1x" : "0.5x"
                     self?.cameraSwitch.setTitle(buttonText, for: .normal)
-                    print("✅ Caméra switchée vers: \(buttonText)")
+                    print("Camera switched to: \(buttonText)")
                 } else {
-                    print("❌ Échec du switch de caméra")
+                    print("Failed to switch camera")
                 }
             }
         }
     }
     
     // MARK: - UI Updates
+    
+    /// Fonction pour mettre à jour l'interface utilisateur
     private func updateUI() {
         updateButtonAppearance()
         
@@ -228,42 +219,37 @@ class ViewController: UIViewController {
         }
     }
     
+    /// Fonction pour mettre à jour l'apparence du bouton d'enregistrement
     private func updateButtonAppearance() {
         if cameraModel.isRecording {
-            // Mode enregistrement : bouton rouge
             recordButton.backgroundColor = .red
             recordButton.layer.borderColor = UIColor.white.cgColor
         } else {
-            // Mode arrêt : bouton blanc
             recordButton.backgroundColor = .white
             recordButton.layer.borderColor = UIColor.red.cgColor
         }
     }
     
-    // MARK: - Timer
+    // MARK: - Timer Management
+    
+    /// Fonction pour démarrer le timer d'enregistrement
     private func startTimer() {
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             self.cameraModel.recordingDuration += 0.1
             self.updateStatusLabel()
         }
     }
-
+    
+    /// Fonction pour arrêter le timer d'enregistrement
     private func stopTimer() {
         recordingTimer?.invalidate()
         recordingTimer = nil
     }
-
+    
+    /// Fonction pour mettre à jour le label du timer
     private func updateStatusLabel() {
         let minutes = Int(cameraModel.recordingDuration) / 60
         let seconds = Int(cameraModel.recordingDuration) % 60
         statusLabel.text = String(format: "%02d:%02d", minutes, seconds)
-    }
-    
-    private func debugCameraState() {
-        print("🔍 DEBUG Camera State:")
-        print("- previewLayer existe: \(previewLayer != nil)")
-        print("- session existe: \(cameraSession != nil)")
-        print("- session connectée à preview: \(previewLayer?.session != nil)")
-        print("- session en cours: \(cameraSession?.isRunning ?? false)")
     }
 }
